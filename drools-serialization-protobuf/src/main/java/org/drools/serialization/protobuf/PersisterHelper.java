@@ -63,6 +63,8 @@ import org.kie.api.marshalling.ObjectMarshallingStrategy.Context;
 
 public class PersisterHelper extends MarshallingHelper {
 
+    private static KeyStoreHelper keyStoreHelper;
+
     public static WorkingMemoryAction readWorkingMemoryAction( MarshallerReaderContext context) throws IOException {
         int type = context.readShort();
         switch ( type ) {
@@ -98,7 +100,7 @@ public class PersisterHelper extends MarshallingHelper {
             case BEHAVIOR_EXPIRE : {
                 return new ProtobufBehaviorExpireWMAction( context, _action );
 
-            }         
+            }
             case SIGNAL : {
                 // need to fix this
             }
@@ -124,11 +126,11 @@ public class PersisterHelper extends MarshallingHelper {
         }
         return _tuple.build();
     }
-    
+
     public static long[] createTupleArray(final ProtobufMessages.Tuple _tuple) {
         long[] tuple = new long[_tuple.getHandleIdCount()];
         for ( int i = 0; i < tuple.length; i++ ) {
-            // needs to reverse the tuple elements 
+            // needs to reverse the tuple elements
             tuple[i] = _tuple.getHandleId( tuple.length - i - 1 );
         }
         return tuple;
@@ -137,7 +139,7 @@ public class PersisterHelper extends MarshallingHelper {
     public static TupleKey createTupleKey( final ProtobufMessages.Tuple _tuple) {
         return new TupleKey( createTupleArray( _tuple ));
     }
-    
+
     public static ProtobufMessages.Activation createActivation(final String packageName,
                                                                final String ruleName,
                                                                final Tuple tuple) {
@@ -147,7 +149,7 @@ public class PersisterHelper extends MarshallingHelper {
                         .setTuple( createTuple( tuple ) )
                         .build();
     }
-    
+
     public static void writeToStreamWithHeader( MarshallerWriteContext context,
                                                 Message payload ) throws IOException {
         ProtobufMessages.Header.Builder _header = ProtobufMessages.Header.newBuilder();
@@ -156,7 +158,7 @@ public class PersisterHelper extends MarshallingHelper {
                                             .setVersionMinor( Drools.getMinorVersion() )
                                             .setVersionRevision( Drools.getRevisionVersion() )
                             .build() );
-        
+
         writeStrategiesIndex( context, _header );
 
         RuleBase kBase = context.getKnowledgeBase();
@@ -203,7 +205,7 @@ public class PersisterHelper extends MarshallingHelper {
 			Builder _strat = ProtobufMessages.Header.StrategyIndex.newBuilder()
                                      .setId( entry.getValue().intValue() )
                                      .setName( entry.getKey().getName()  );
-			
+
             Context ctx = context.getStrategyContext().get( entry.getKey() );
             if( ctx != null ) {
                 Output os = ByteString.newOutput();
@@ -217,7 +219,7 @@ public class PersisterHelper extends MarshallingHelper {
 
     private static void sign(ProtobufMessages.Header.Builder _header,
                              byte[] buff ) {
-        KeyStoreHelper helper = new KeyStoreHelper();
+        KeyStoreHelper helper = getKeyStoreHelper();
         if (helper.isSigned()) {
             try {
                 _header.setSignature( ProtobufMessages.Signature.newBuilder()
@@ -230,7 +232,7 @@ public class PersisterHelper extends MarshallingHelper {
             }
         }
     }
-    
+
     private static ProtobufMessages.Header loadStrategiesCheckSignature( MarshallerReaderContext context, ProtobufMessages.Header _header) throws ClassNotFoundException, IOException {
         loadStrategiesIndex( context, _header );
 
@@ -238,7 +240,7 @@ public class PersisterHelper extends MarshallingHelper {
 
         // should we check version as well here?
         checkSignature( _header, sessionbuff );
-        
+
         return _header;
     }
 
@@ -250,7 +252,7 @@ public class PersisterHelper extends MarshallingHelper {
 
         return loadStrategiesCheckSignature(context, _header);
     }
-    
+
     /* Method that preloads the source stream into a byte array to bypass the message size limitations in Protobuf unmarshalling.
        (Protobuf does not enforce a message size limit when unmarshalling from a byte array)
     */
@@ -305,7 +307,7 @@ public class PersisterHelper extends MarshallingHelper {
 
     private static void checkSignature(Header _header,
                                        byte[] sessionbuff) {
-        KeyStoreHelper helper = new KeyStoreHelper();
+        KeyStoreHelper helper = getKeyStoreHelper();
         boolean signed = _header.hasSignature();
         if ( helper.isSigned() != signed ) {
             throw new RuntimeException( "This environment is configured to work with " +
@@ -338,7 +340,14 @@ public class PersisterHelper extends MarshallingHelper {
             }
         }
     }
-    
+
+    private static KeyStoreHelper getKeyStoreHelper() {
+        if (keyStoreHelper == null) {
+            keyStoreHelper = new KeyStoreHelper();
+        }
+        return keyStoreHelper;
+    }
+
     public static ExtensionRegistry buildRegistry( MarshallerReaderContext context, ProcessMarshaller processMarshaller ) {
         ExtensionRegistry registry = ExtensionRegistry.newInstance();
         if( processMarshaller != null ) {
